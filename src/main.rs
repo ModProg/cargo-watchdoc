@@ -103,7 +103,7 @@ async fn run() -> Result {
     let we = Watchexec::new(
         init,
         RuntimeConfig::default()
-            .pathset(["/mnt/data-ssd/modprog/Development/Rust/watchdoc"])
+            .pathset([workspace_root])
             .filterer(Arc::new(
                 GlobsetFilterer::new(
                     &workspace_root,
