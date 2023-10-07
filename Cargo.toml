@@ -1,0 +1,47 @@
+[package]
+name = "cargo-watchdoc"
+version = "0.1.0"
+edition = "2021"
+categories = []
+description = "Regenerates and live reloads docs on changes"
+keywords = []
+license = "MIT OR Apache-2.0"
+readme = "README.md"
+repository = "https://github.com/ModProg/watchdoc"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+anyhow = "1.0.75"
+axum = "0.6.20"
+cargo_metadata = "0.18.0"
+clap = { version = "4.4.6", features = ["derive"] }
+ignore-files = "1.3.1"
+log = "0.4.20"
+portpicker = "0.1.1"
+stderrlog = "0.5.4"
+tokio = "1.32.0"
+tower-http = { version = "0.4.4", features = ["fs"] }
+tower-livereload = "0.8.1"
+watchexec = "2.3.0"
+watchexec-filterer-globset = "1.2.0"
+watchexec-filterer-ignore = "1.2.1"
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[[package.metadata.release.pre-release-replacements]]
+file = "CHANGELOG.md"
+search = '## \[Unreleased\]'
+replace = """
+<!-- ## [Unreleased] -->
+## [{{version}}] - {{date}}\
+"""
+[[package.metadata.release.pre-release-replacements]]
+file = "CHANGELOG.md"
+search = '\[unreleased\]: (.*)/(v.*)\.\.\.HEAD'
+replace = """
+[unreleased]: $1/{{tag_name}}...HEAD
+[{{version}}]: $1/$2...{{tag_name}}\
+"""
