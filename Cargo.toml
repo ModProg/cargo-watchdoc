@@ -1,6 +1,6 @@
 [package]
 name = "cargo-watchdoc"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
 categories = ["command-line-utilities", "development-tools"]
 description = "Regenerates and live reloads docs on changes"
