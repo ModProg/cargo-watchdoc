@@ -7,7 +7,7 @@ description = "Regenerates and live reloads docs on changes"
 keywords = []
 license = "MIT OR Apache-2.0"
 readme = "README.md"
-repository = "https://github.com/ModProg/watchdoc"
+repository = "https://github.com/ModProg/cargo-watchdoc"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
