@@ -4,3 +4,5 @@
 [![Crates.io](https://img.shields.io/crates/v/watchdoc)](https://crates.io/crates/watchdoc)
 
 A CLI to live serve documentation for your crate while developing.
+
+Install via `cargo`: `cargo install cargo-watchdoc` and simply run as `cargo watchdoc` in your project.

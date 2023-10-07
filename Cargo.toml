@@ -2,9 +2,9 @@
 name = "cargo-watchdoc"
 version = "0.1.0"
 edition = "2021"
-categories = []
+categories = ["command-line-utilities", "development-tools"]
 description = "Regenerates and live reloads docs on changes"
-keywords = []
+keywords = ["cargo", "watch", "compile", "notify", "docs"]
 license = "MIT OR Apache-2.0"
 readme = "README.md"
 repository = "https://github.com/ModProg/cargo-watchdoc"
