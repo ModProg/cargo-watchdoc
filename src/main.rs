@@ -3,14 +3,19 @@
 
 use std::net::{Ipv4Addr, SocketAddrV4};
 use std::path::MAIN_SEPARATOR;
+use std::pin::Pin;
 use std::sync::Arc;
+use std::task::{self, Poll};
 
 use anyhow::Context;
-use axum::response::Html;
+use axum::body::{self, Bytes, HttpBody};
+use axum::http::header::CONTENT_TYPE;
+use axum::middleware::map_response;
+use axum::response::{Html, IntoResponse, Response};
 use axum::{routing, Router, Server};
 use cargo_config2::DocConfig;
 use cargo_metadata::{Metadata, MetadataCommand};
-use clap::Parser;
+use clap::{Parser, ValueEnum};
 use log::{debug, info};
 use tokio::select;
 use tower_http::services::ServeDir;
@@ -41,10 +46,22 @@ enum Cli {
         /// Clears terminal between runs
         #[arg(short, long)]
         clear: bool,
+        /// Forces theme
+        #[arg(short, long)]
+        theme: Option<Theme>,
         /// Arguments after `--` are passed to `cargo doc`
         #[arg(allow_hyphen_values = true, last = true)]
         cargo_doc_args: Vec<String>,
     },
+}
+
+#[derive(ValueEnum, Clone, Debug, Copy)]
+enum Theme {
+    Light,
+    Dark,
+    Ayu,
+    AutoAyu,
+    AutoDark,
 }
 
 #[tokio::main]
@@ -57,6 +74,7 @@ async fn run() -> Result {
         open,
         cargo_doc_args,
         clear,
+        theme,
     } = Cli::parse();
 
     let cargo_config2::Config {
@@ -80,15 +98,18 @@ async fn run() -> Result {
 
     let livereload = LiveReloadLayer::new();
     let reloader = livereload.reloader();
-    let app = Router::new()
-        .nest_service(
-            "/",
-            ServeDir::new(target_directory.join("doc")).not_found_service(routing::get(|| async {
-                Html(r#"404 <a href="/help.html?search=">Back to Search</a>"#)
-            })),
-        )
-        // .fallback(|| async {"404"})
-        .layer(livereload);
+    let mut app = Router::new().nest_service(
+        "/",
+        ServeDir::new(target_directory.join("doc")).not_found_service(routing::get(|| async {
+            Html(r#"404 <a href="/help.html?search=">Back to Search</a>"#)
+        })),
+    );
+    if let Some(theme) = theme {
+        app = app.layer(map_response(move |response: Response| async move {
+            inject_theme_setter(response, theme)
+        }));
+    }
+    let app = app.layer(livereload);
 
     let port = if portpicker::is_free(4153) {
         4153
@@ -211,4 +232,68 @@ async fn run() -> Result {
     }
 
     Ok(())
+}
+
+fn inject_theme_setter(response: Response, theme: Theme) -> impl IntoResponse {
+    use axum::Error;
+    struct InjectBody(body::BoxBody, Option<&'static str>);
+    impl HttpBody for InjectBody {
+        type Data = Bytes;
+        type Error = Error;
+
+        fn poll_data(
+            mut self: std::pin::Pin<&mut Self>,
+            cx: &mut task::Context<'_>,
+        ) -> Poll<Option<Result<Self::Data, Self::Error>>> {
+            let poll = Pin::new(&mut self.0).poll_data(cx);
+            match poll {
+                Poll::Ready(None) => Poll::Ready(
+                    self.1
+                        .take()
+                        .map(|theme| Ok(Bytes::from_static(theme.as_bytes()))),
+                ),
+                poll => poll,
+            }
+        }
+
+        fn poll_trailers(
+            mut self: Pin<&mut Self>,
+            cx: &mut task::Context<'_>,
+        ) -> Poll<Result<Option<axum::http::HeaderMap>, Self::Error>> {
+            Pin::new(&mut self.0).poll_trailers(cx)
+        }
+    }
+
+    macro_rules! theme_injection {
+        ($dark:literal, $theme:literal, $auto:literal) => {
+            concat!(
+                r#"<script/> updateLocalStorage("preferred-dark-theme", ""#,
+                $dark,
+                r#""); updateLocalStorage("theme", ""#,
+                $theme,
+                r#""); updateLocalStorage("use-system-theme", ""#,
+                $auto,
+                r#""); updateTheme() </script>"#
+            )
+        };
+    }
+
+    let theme = match theme {
+        Theme::Light => theme_injection!("dark", "light", "false"),
+        Theme::Dark => theme_injection!("dark", "dark", "false"),
+        Theme::Ayu => theme_injection!("ayu", "ayu", "false"),
+        Theme::AutoAyu => theme_injection!("ayu", "ayu", "true"),
+        Theme::AutoDark => theme_injection!("dark", "dark", "true"),
+    };
+
+    if response
+        .headers()
+        .get(CONTENT_TYPE)
+        .is_some_and(|ct| ct.to_str().is_ok_and(|ct| ct.starts_with("text/html")))
+    {
+        let (parts, body) = response.into_parts();
+        Response::from_parts(parts, body::boxed(InjectBody(body, Some(theme))))
+    } else {
+        response
+    }
 }
