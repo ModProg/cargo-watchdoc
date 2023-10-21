@@ -9,7 +9,8 @@ use std::task::{self, Poll};
 
 use anyhow::Context;
 use axum::body::{self, Bytes, HttpBody};
-use axum::http::header::CONTENT_TYPE;
+use axum::http::header::{CACHE_CONTROL, CONTENT_TYPE};
+use axum::http::HeaderValue;
 use axum::middleware::map_response;
 use axum::response::{Html, IntoResponse, Response};
 use axum::{routing, Router, Server};
@@ -105,7 +106,10 @@ async fn run() -> Result {
         })),
     );
     if let Some(theme) = theme {
-        app = app.layer(map_response(move |response: Response| async move {
+        app = app.layer(map_response(move |mut response: Response| async move {
+            response
+                .headers_mut()
+                .insert(CACHE_CONTROL, HeaderValue::from_static("no-store"));
             inject_theme_setter(response, theme)
         }));
     }
