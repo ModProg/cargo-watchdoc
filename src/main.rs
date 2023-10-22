@@ -99,21 +99,18 @@ async fn run() -> Result {
 
     let livereload = LiveReloadLayer::new();
     let reloader = livereload.reloader();
-    let mut app = Router::new().nest_service(
+    let app = Router::new().nest_service(
         "/",
         ServeDir::new(target_directory.join("doc")).not_found_service(routing::get(|| async {
             Html(r#"404 <a href="/help.html?search=">Back to Search</a>"#)
         })),
     );
+    let mut app = app.layer(livereload);
     if let Some(theme) = theme {
-        app = app.layer(map_response(move |mut response: Response| async move {
-            response
-                .headers_mut()
-                .insert(CACHE_CONTROL, HeaderValue::from_static("no-store"));
+        app = app.layer(map_response(move |response: Response| async move {
             inject_theme_setter(response, theme)
         }));
     }
-    let app = app.layer(livereload);
 
     let port = if portpicker::is_free(4153) {
         4153
@@ -238,7 +235,7 @@ async fn run() -> Result {
     Ok(())
 }
 
-fn inject_theme_setter(response: Response, theme: Theme) -> impl IntoResponse {
+fn inject_theme_setter(mut response: Response, theme: Theme) -> impl IntoResponse {
     use axum::Error;
     struct InjectBody(body::BoxBody, Option<&'static str>);
     impl HttpBody for InjectBody {
@@ -295,6 +292,9 @@ fn inject_theme_setter(response: Response, theme: Theme) -> impl IntoResponse {
         .get(CONTENT_TYPE)
         .is_some_and(|ct| ct.to_str().is_ok_and(|ct| ct.starts_with("text/html")))
     {
+        response
+            .headers_mut()
+            .insert(CACHE_CONTROL, HeaderValue::from_static("no-store"));
         let (parts, body) = response.into_parts();
         Response::from_parts(parts, body::boxed(InjectBody(body, Some(theme))))
     } else {
